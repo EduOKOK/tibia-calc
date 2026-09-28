@@ -315,7 +315,7 @@
     return l.indexOf('pl') === 0 ? 'pl' : 'en';
   }
 
-  var state = { balance: 1000, bet: 100, game: 'highlow', lang: detectLang(), settings: defaultSettings(), history: [] };
+  var state = { balance: 0, bet: 0, game: 'highlow', lang: detectLang(), settings: defaultSettings(), history: [] };
 
   function t(key, vars) {
     var str = (I18N[state.lang] && I18N[state.lang][key]) || I18N.en[key] || key;
