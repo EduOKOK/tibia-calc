@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Casino Balance Calculator</title>
+<style>
+  :root {
+    --stone: #2a2926;
+    --panel: #3a3833;
+    --bevel-hi: #5d5a52;
+    --bevel-lo: #171614;
+    --well: #1e1d1a;
+    --text: #ddd6c6;
+    --muted: #9a927f;
+    --crystal: #74d4ff;
+    --win: #86c65f;
+    --lose: #d2604d;
+    --focus: #f2c14e;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--stone); }
+  body {
+    margin: 0;
+    padding: 20px 12px 40px;
+    font: 13px/1.45 Verdana, Tahoma, sans-serif;
+    color: var(--text);
+  }
+  main { max-width: 620px; margin: 0 auto; }
+  h1 { font-size: 18px; margin: 0 0 2px; font-weight: bold; }
+  .sub { color: var(--muted); margin: 0 0 14px; }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .lang { display: flex; gap: 4px; flex-shrink: 0; }
+  .lang button[aria-pressed="true"] { color: var(--crystal); font-weight: bold;
+    border-color: var(--bevel-lo) var(--bevel-hi) var(--bevel-hi) var(--bevel-lo); background: var(--well); }
+
+  .raised, button, .tab {
+    border: 2px solid;
+    border-color: var(--bevel-hi) var(--bevel-lo) var(--bevel-lo) var(--bevel-hi);
+  }
+  .inset, input[type="number"] {
+    border: 2px solid;
+    border-color: var(--bevel-lo) var(--bevel-hi) var(--bevel-hi) var(--bevel-lo);
+    background: var(--well);
+  }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: -2px; position: relative; z-index: 1; }
+  .tab {
+    background: var(--stone); color: var(--muted);
+    padding: 6px 16px; font: inherit; cursor: pointer;
+    border-bottom-color: var(--bevel-hi);
+  }
+  .tab[aria-selected="true"] { background: var(--panel); color: var(--text); border-bottom-color: var(--panel); }
+
+  .panel { background: var(--panel); padding: 16px; margin-bottom: 16px;
+    border: 2px solid; border-color: var(--bevel-hi) var(--bevel-lo) var(--bevel-lo) var(--bevel-hi); }
+  .panel[hidden] { display: none; }
+
+  label.field { display: block; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .field span.name { display: block; margin-bottom: 4px; color: var(--muted); }
+  input[type="number"] {
+    width: 100%; padding: 8px 10px; color: var(--crystal);
+    font: bold 16px Verdana, Tahoma, sans-serif;
+  }
+  input[type="number"].small { width: 84px; padding: 4px 6px; font-size: 13px; }
+  input:focus-visible, button:focus-visible, .game input:focus-visible + span {
+    outline: 2px solid var(--focus); outline-offset: 1px;
+  }
+
+  fieldset { border: 0; padding: 0; margin: 0 0 14px; }
+  legend { color: var(--muted); padding: 0; margin-bottom: 4px; }
+  .games { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; }
+  .game { position: relative; display: block; }
+  .game input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .game span {
+    display: flex; justify-content: space-between; gap: 8px;
+    padding: 8px 10px; background: var(--stone);
+    border: 2px solid; border-color: var(--bevel-hi) var(--bevel-lo) var(--bevel-lo) var(--bevel-hi);
+  }
+  .game em { font-style: normal; color: var(--muted); }
+  .game input:checked + span {
+    background: var(--well);
+    border-color: var(--bevel-lo) var(--bevel-hi) var(--bevel-hi) var(--bevel-lo);
+    color: var(--crystal);
+  }
+  .game input:checked + span em { color: var(--crystal); }
+
+  .preview { margin: 0 0 14px; }
+  .preview .note { min-height: 3.6em; margin: 0; padding: 8px 10px; color: var(--muted); }
+  .outcomes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .outcome { padding: 8px 10px; border: 2px solid;
+    border-color: var(--bevel-lo) var(--bevel-hi) var(--bevel-hi) var(--bevel-lo); background: var(--well); }
+  .outcome .label { color: var(--muted); }
+  .outcome .after { font-size: 18px; font-weight: bold; color: var(--crystal); margin: 2px 0; }
+  .outcome .change { font-weight: bold; }
+  .outcome .hint { color: var(--muted); font-size: 11px; }
+  .outcome.win .change { color: var(--win); }
+  .outcome.lose .change { color: var(--lose); }
+  .warn { color: var(--focus); margin-top: 6px; }
+
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  button { font: inherit; color: var(--text); background: var(--stone); padding: 10px 14px; cursor: pointer; }
+  button:active { border-color: var(--bevel-lo) var(--bevel-hi) var(--bevel-hi) var(--bevel-lo); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.win { color: var(--win); font-weight: bold; font-size: 15px; }
+  button.lose { color: var(--lose); font-weight: bold; font-size: 15px; }
+  button.plain { padding: 5px 10px; font-size: 12px; }
+
+  .log-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .log-head h2 { font-size: 13px; margin: 0; }
+  .log-tools { display: flex; gap: 6px; }
+  .log { height: 260px; overflow-y: auto; padding: 6px 8px;
+    font: 12px/1.6 "Courier New", Consolas, monospace; }
+  .log .empty { color: var(--muted); }
+  .entry { display: grid; grid-template-columns: 62px 56px 1fr auto; gap: 8px; white-space: nowrap; }
+  .entry .g { overflow: hidden; text-overflow: ellipsis; }
+  .entry .r { text-align: right; }
+  .entry.win .res, .entry .pos { color: var(--win); }
+  .entry.lose .res, .entry .neg { color: var(--lose); }
+  .entry .time { color: var(--muted); }
+  .entry .bal { color: var(--crystal); }
+  .log-foot { margin-top: 8px; color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-weight: normal; color: var(--muted); padding: 0 8px 6px 0; }
+  td { padding: 6px 8px 6px 0; vertical-align: middle; }
+  td.pct { white-space: nowrap; }
+  .settings-note { color: var(--muted); margin: 12px 0; }
+  input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--crystal); }
+  tr.off td:not(.on) { opacity: .5; }
+
+  @media (max-width: 480px) {
+    .row { grid-template-columns: 1fr; }
+    .entry { grid-template-columns: 56px 52px 1fr auto; gap: 6px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <h1 data-i18n="title">Casino balance calculator</h1>
+    <div class="lang" id="lang" role="group">
+      <button class="plain" data-lang="en" aria-pressed="true">EN</button>
+      <button class="plain" data-lang="pl" aria-pressed="false">PL</button>
+    </div>
+  </div>
+  <p class="sub" data-i18n="sub">Track a player's balance in crystal coins. Everything is saved in this browser.</p>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-calc" aria-controls="panel-calc" aria-selected="true" data-i18n="tab.calc">Calculator</button>
+    <button class="tab" role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false" data-i18n="tab.settings">Payout settings</button>
+  </div>
+
+  <!-- Calculator -->
+  <section class="panel" id="panel-calc" role="tabpanel" aria-labelledby="tab-calc">
+    <div class="row">
+      <label class="field"><span class="name" data-i18n="balance">Player balance (cc)</span>
+        <input type="number" id="balance" step="any" inputmode="decimal"></label>
+      <label class="field"><span class="name" data-i18n="bet">Player bet (cc)</span>
+        <input type="number" id="bet" step="any" min="0" inputmode="decimal"></label>
+    </div>
+
+    <fieldset>
+      <legend data-i18n="game">Game</legend>
+      <div class="games" id="games"></div>
+    </fieldset>
+
+    <div class="preview" id="preview" aria-live="polite"></div>
+
+    <div class="actions">
+      <button class="win" id="btn-win" data-i18n="btn.won">Player won</button>
+      <button class="lose" id="btn-lose" data-i18n="btn.lost">Player lost</button>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <section class="panel" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+    <table>
+      <thead><tr><th data-i18n="th.game">Game</th><th data-i18n="th.enabled">Enabled</th><th data-i18n="th.payout">Payout</th></tr></thead>
+      <tbody id="settings-body"></tbody>
+    </table>
+    <p class="settings-note" data-i18n="settings.note">Payout is the share of the player's bet paid back on a win. At 180%, a bet of 100 pays back 180, so the player gains 80. Disabled games are hidden from the calculator.</p>
+    <button class="plain" id="btn-reset" data-i18n="reset">Reset to defaults</button>
+  </section>
+
+  <!-- History -->
+  <section class="panel" aria-labelledby="log-title">
+    <div class="log-head">
+      <h2 id="log-title" data-i18n="history">Bet history</h2>
+      <div class="log-tools">
+        <button class="plain" id="btn-undo" data-i18n="undo">Undo last</button>
+        <button class="plain" id="btn-clear" data-i18n="clear">Clear history</button>
+      </div>
+    </div>
+    <div class="log inset" id="log" role="log" aria-live="polite"></div>
+    <div class="log-foot" id="log-foot"></div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var STORAGE_KEY = 'casinoBalanceCalc.v1';
+  var MAX_HISTORY = 500;
+
+  var DEFAULT_GAMES = [
+    { id: 'highlow',     name: 'High / Low',           payout: 180, enabled: true },
+    { id: 'number',      name: 'Number',               payout: 180, enabled: true },
+    { id: 'blackjack',   name: 'Blackjack',            payout: 180, enabled: true },
+    { id: 'blackjack21', name: 'Blackjack 21 (bonus)', payout: 200, enabled: true },
+    { id: 'threev3',     name: '3v3',                  payout: 180, enabled: true }
+  ];
+
+  function defaultSettings() {
+    var s = {};
+    DEFAULT_GAMES.forEach(function (g) { s[g.id] = { payout: g.payout, enabled: g.enabled }; });
+    return s;
+  }
+
+
+  var I18N = {
+    en: {
+      "title": "Casino balance calculator",
+      "sub": "Track a player's balance in crystal coins. Everything is saved in this browser.",
+      "tab.calc": "Calculator",
+      "tab.settings": "Payout settings",
+      "balance": "Player balance (cc)",
+      "bet": "Player bet (cc)",
+      "game": "Game",
+      "btn.won": "Player won",
+      "btn.lost": "Player lost",
+      "th.game": "Game",
+      "th.enabled": "Enabled",
+      "th.payout": "Payout",
+      "settings.note": "Payout is the share of the player's bet paid back on a win. At 180%, a bet of 100 pays back 180, so the player gains 80. Disabled games are hidden from the calculator.",
+      "reset": "Reset to defaults",
+      "history": "Bet history",
+      "undo": "Undo last",
+      "clear": "Clear history",
+      "lang.label": "Language",
+      "game.highlow": "High / Low",
+      "game.number": "Number",
+      "game.blackjack": "Blackjack",
+      "game.blackjack21": "Blackjack 21 (bonus)",
+      "game.threev3": "3v3",
+      "allOff": "All games are disabled. Enable at least one in Payout settings.",
+      "noGame": "No game selected.",
+      "enterBet": "Enter a bet above 0 to see what a win or loss does to the player's balance.",
+      "enterBalance": "Enter the player's balance.",
+      "betTooHigh": "Bet is higher than the player's balance.",
+      "preview.win": "Player wins",
+      "preview.lose": "Player loses",
+      "hint.win": "pays back {ret} ({pct}%)",
+      "hint.lose": "host keeps {bet}",
+      "log.empty": "No bets yet. Press Player won or Player lost to log one.",
+      "log.win": "WIN",
+      "log.loss": "LOSS",
+      "log.bet": "bet",
+      "log.foot": "{n} bets · {w} won · {l} lost · player net {net} cc",
+      "confirm.clear": "Clear the whole bet history? The player's balance stays as it is.",
+      "confirm.reset": "Reset all payouts and enabled games to their defaults?",
+      "aria.enable": "Enable {game}",
+      "aria.payout": "{game} payout percent"
+    },
+    pl: {
+      "title": "Kalkulator salda kasyna",
+      "sub": "Śledź saldo gracza w crystal coinach. Wszystko zapisuje się w tej przeglądarce.",
+      "tab.calc": "Kalkulator",
+      "tab.settings": "Ustawienia wypłat",
+      "balance": "Saldo gracza (cc)",
+      "bet": "Stawka gracza (cc)",
+      "game": "Gra",
+      "btn.won": "Gracz wygrał",
+      "btn.lost": "Gracz przegrał",
+      "th.game": "Gra",
+      "th.enabled": "Włączona",
+      "th.payout": "Wypłata",
+      "settings.note": "Wypłata to część stawki gracza zwracana przy wygranej. Przy 180% stawka 100 daje wypłatę 180, więc gracz zyskuje 80. Wyłączone gry są ukryte w kalkulatorze.",
+      "reset": "Przywróć domyślne",
+      "history": "Historia zakładów",
+      "undo": "Cofnij ostatni",
+      "clear": "Wyczyść historię",
+      "lang.label": "Język",
+      "game.highlow": "High / Low",
+      "game.number": "Liczba",
+      "game.blackjack": "Blackjack",
+      "game.blackjack21": "Blackjack 21 (bonus)",
+      "game.threev3": "3v3",
+      "allOff": "Wszystkie gry są wyłączone. Włącz co najmniej jedną w ustawieniach wypłat.",
+      "noGame": "Nie wybrano gry.",
+      "enterBet": "Wpisz stawkę większą od 0, aby zobaczyć, jak wygrana lub przegrana zmieni saldo gracza.",
+      "enterBalance": "Wpisz saldo gracza.",
+      "betTooHigh": "Stawka jest wyższa niż saldo gracza.",
+      "preview.win": "Gracz wygrywa",
+      "preview.lose": "Gracz przegrywa",
+      "hint.win": "wypłata {ret} ({pct}%)",
+      "hint.lose": "kasyno zatrzymuje {bet}",
+      "log.empty": "Brak zakładów. Naciśnij „Gracz wygrał” lub „Gracz przegrał”, aby dodać wpis.",
+      "log.win": "WYGR.",
+      "log.loss": "PRZEG.",
+      "log.bet": "stawka",
+      "log.foot": "Zakłady: {n} · wygrane: {w} · przegrane: {l} · wynik gracza: {net} cc",
+      "confirm.clear": "Wyczyścić całą historię zakładów? Saldo gracza pozostanie bez zmian.",
+      "confirm.reset": "Przywrócić domyślne wypłaty i włączone gry?",
+      "aria.enable": "Włącz: {game}",
+      "aria.payout": "{game} – procent wypłaty"
+    }
+  };
+
+  function detectLang() {
+    var l = (navigator.language || 'en').toLowerCase();
+    return l.indexOf('pl') === 0 ? 'pl' : 'en';
+  }
+
+  var state = { balance: 1000, bet: 100, game: 'highlow', lang: detectLang(), settings: defaultSettings(), history: [] };
+
+  function t(key, vars) {
+    var str = (I18N[state.lang] && I18N[state.lang][key]) || I18N.en[key] || key;
+    if (vars) Object.keys(vars).forEach(function (k) { str = str.split('{' + k + '}').join(vars[k]); });
+    return str;
+  }
+  function gname(id) { return t('game.' + id); }
+
+  // ---------- storage ----------
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      var d = JSON.parse(raw);
+      if (typeof d.balance === 'number' && isFinite(d.balance)) state.balance = d.balance;
+      if (typeof d.bet === 'number' && isFinite(d.bet)) state.bet = d.bet;
+      if (typeof d.game === 'string') state.game = d.game;
+      if (d.lang === 'en' || d.lang === 'pl') state.lang = d.lang;
+      if (d.settings) {
+        DEFAULT_GAMES.forEach(function (g) {
+          var s = d.settings[g.id];
+          if (s && typeof s.payout === 'number' && isFinite(s.payout) && s.payout >= 0) state.settings[g.id].payout = s.payout;
+          if (s && typeof s.enabled === 'boolean') state.settings[g.id].enabled = s.enabled;
+        });
+      }
+      if (Array.isArray(d.history)) state.history = d.history.slice(-MAX_HISTORY);
+    } catch (e) { /* storage unavailable or corrupt: use defaults */ }
+  }
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+  }
+
+  // ---------- helpers ----------
+  var $ = function (id) { return document.getElementById(id); };
+  function round2(n) { return Math.round(n * 100) / 100; }
+  function fmt(n) { return round2(n).toLocaleString(state.lang, { maximumFractionDigits: 2 }); }
+  function signed(n) { return (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n)); }
+  function gameById(id) { return DEFAULT_GAMES.filter(function (g) { return g.id === id; })[0]; }
+  function enabledGames() { return DEFAULT_GAMES.filter(function (g) { return state.settings[g.id].enabled; }); }
+  function ensureValidGame() {
+    var en = enabledGames();
+    if (!en.length) return;
+    if (!en.some(function (g) { return g.id === state.game; })) state.game = en[0].id;
+  }
+  function num(v) { var n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : NaN; }
+
+  // ---------- render: calculator ----------
+  function renderGames() {
+    ensureValidGame();
+    var box = $('games');
+    box.innerHTML = '';
+    var en = enabledGames();
+    if (!en.length) {
+      var p = document.createElement('p');
+      p.className = 'warn';
+      p.textContent = t('allOff');
+      box.appendChild(p);
+      return;
+    }
+    en.forEach(function (g) {
+      var label = document.createElement('label');
+      label.className = 'game';
+      var input = document.createElement('input');
+      input.type = 'radio'; input.name = 'game'; input.value = g.id;
+      input.checked = g.id === state.game;
+      input.addEventListener('change', function () { state.game = g.id; save(); renderPreview(); });
+      var face = document.createElement('span');
+      var n = document.createElement('strong'); n.textContent = gname(g.id); n.style.fontWeight = 'normal';
+      var pct = document.createElement('em'); pct.textContent = state.settings[g.id].payout + '%';
+      face.appendChild(n); face.appendChild(pct);
+      label.appendChild(input); label.appendChild(face);
+      box.appendChild(label);
+    });
+  }
+
+  function currentBet() { return num($('bet').value); }
+
+  function outcomeBox(kind, label, after, change, hint) {
+    var box = document.createElement('div');
+    box.className = 'outcome ' + kind;
+    var l = document.createElement('div'); l.className = 'label'; l.textContent = label;
+    var a = document.createElement('div'); a.className = 'after'; a.textContent = fmt(after) + ' cc';
+    var c = document.createElement('div'); c.className = 'change'; c.textContent = signed(change) + ' cc';
+    var h = document.createElement('div'); h.className = 'hint'; h.textContent = hint;
+    box.appendChild(l); box.appendChild(a); box.appendChild(c); box.appendChild(h);
+    return box;
+  }
+
+  function renderPreview() {
+    var p = $('preview');
+    var bet = currentBet();
+    var bal = num($('balance').value);
+    var en = enabledGames();
+    var canPlay = en.length > 0 && isFinite(bet) && bet > 0 && isFinite(bal);
+    $('btn-win').disabled = !canPlay;
+    $('btn-lose').disabled = !canPlay;
+    p.innerHTML = '';
+
+    function note(text) {
+      var n = document.createElement('p'); n.className = 'note inset'; n.textContent = text; p.appendChild(n);
+    }
+    if (!en.length) { note(t('noGame')); return; }
+    if (!isFinite(bet) || bet <= 0) { note(t('enterBet')); return; }
+    if (!isFinite(bal)) { note(t('enterBalance')); return; }
+
+    var pay = state.settings[state.game].payout;
+    var returned = round2(bet * pay / 100);
+    var gain = round2(returned - bet);
+
+    var wrap = document.createElement('div'); wrap.className = 'outcomes';
+    wrap.appendChild(outcomeBox('win', t('preview.win'), bal + gain, gain,
+      t('hint.win', { ret: fmt(returned), pct: pay })));
+    wrap.appendChild(outcomeBox('lose', t('preview.lose'), bal - bet, -bet,
+      t('hint.lose', { bet: fmt(bet) })));
+    p.appendChild(wrap);
+
+    if (bet > bal) {
+      var warn = document.createElement('div');
+      warn.className = 'warn';
+      warn.textContent = t('betTooHigh');
+      p.appendChild(warn);
+    }
+  }
+
+  // ---------- render: settings ----------
+  function renderSettings() {
+    var body = $('settings-body');
+    body.innerHTML = '';
+    DEFAULT_GAMES.forEach(function (g) {
+      var s = state.settings[g.id];
+      var tr = document.createElement('tr');
+      if (!s.enabled) tr.className = 'off';
+
+      var tdName = document.createElement('td'); tdName.textContent = gname(g.id);
+
+      var tdOn = document.createElement('td'); tdOn.className = 'on';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = s.enabled;
+      cb.setAttribute('aria-label', t('aria.enable', { game: gname(g.id) }));
+      cb.addEventListener('change', function () {
+        s.enabled = cb.checked; save();
+        tr.className = s.enabled ? '' : 'off';
+        renderGames(); renderPreview();
+      });
+      tdOn.appendChild(cb);
+
+      var tdPct = document.createElement('td'); tdPct.className = 'pct';
+      var inp = document.createElement('input');
+      inp.type = 'number'; inp.className = 'small'; inp.step = 'any'; inp.min = '0'; inp.value = s.payout;
+      inp.setAttribute('aria-label', t('aria.payout', { game: gname(g.id) }));
+      inp.addEventListener('input', function () {
+        var v = num(inp.value);
+        if (isFinite(v) && v >= 0) { s.payout = v; save(); renderGames(); renderPreview(); }
+      });
+      tdPct.appendChild(inp);
+      tdPct.appendChild(document.createTextNode(' %'));
+
+      tr.appendChild(tdName); tr.appendChild(tdOn); tr.appendChild(tdPct);
+      body.appendChild(tr);
+    });
+  }
+
+  // ---------- render: history ----------
+  function renderHistory() {
+    var log = $('log');
+    log.innerHTML = '';
+    if (!state.history.length) {
+      var e = document.createElement('div');
+      e.className = 'empty';
+      e.textContent = t('log.empty');
+      log.appendChild(e);
+    } else {
+      state.history.slice().reverse().forEach(function (h) {
+        var row = document.createElement('div');
+        row.className = 'entry ' + h.result;
+        var tm = document.createElement('span'); tm.className = 'time';
+        tm.textContent = new Date(h.t).toLocaleTimeString(state.lang, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        var r = document.createElement('span'); r.className = 'res';
+        r.textContent = h.result === 'win' ? t('log.win') : t('log.loss');
+        var g = document.createElement('span'); g.className = 'g';
+        g.textContent = (h.gameId ? gname(h.gameId) : h.game) + ' · ' + t('log.bet') + ' ' + fmt(h.bet);
+        var right = document.createElement('span'); right.className = 'r';
+        var d = document.createElement('span'); d.className = h.delta >= 0 ? 'pos' : 'neg';
+        d.textContent = signed(h.delta);
+        var b = document.createElement('span'); b.className = 'bal';
+        b.textContent = '  = ' + fmt(h.after);
+        right.appendChild(d); right.appendChild(b);
+        row.appendChild(tm); row.appendChild(r); row.appendChild(g); row.appendChild(right);
+        log.appendChild(row);
+      });
+    }
+    var wins = state.history.filter(function (h) { return h.result === 'win'; }).length;
+    var net = state.history.reduce(function (a, h) { return a + h.delta; }, 0);
+    $('log-foot').textContent = state.history.length
+      ? t('log.foot', { n: state.history.length, w: wins, l: state.history.length - wins, net: signed(net) })
+      : '';
+    $('btn-undo').disabled = !state.history.length;
+    $('btn-clear').disabled = !state.history.length;
+  }
+
+  // ---------- actions ----------
+  function play(result) {
+    var bet = currentBet();
+    var bal = num($('balance').value);
+    if (!isFinite(bet) || bet <= 0 || !isFinite(bal)) return;
+    var g = gameById(state.game);
+    var pay = state.settings[g.id].payout;
+    var delta = result === 'win' ? round2(bet * pay / 100 - bet) : -bet;
+    var after = round2(bal + delta);
+    state.history.push({ t: Date.now(), game: g.name, gameId: g.id, result: result, bet: bet, delta: delta, before: bal, after: after });
+    if (state.history.length > MAX_HISTORY) state.history.shift();
+    state.balance = after;
+    $('balance').value = after;
+    save(); renderHistory(); renderPreview();
+  }
+
+  function undo() {
+    var last = state.history.pop();
+    if (!last) return;
+    state.balance = last.before;
+    $('balance').value = last.before;
+    save(); renderHistory(); renderPreview();
+  }
+
+  function setTab(name) {
+    var calc = name === 'calc';
+    $('tab-calc').setAttribute('aria-selected', calc);
+    $('tab-settings').setAttribute('aria-selected', !calc);
+    $('panel-calc').hidden = !calc;
+    $('panel-settings').hidden = calc;
+  }
+
+  // ---------- init ----------
+  load();
+  $('balance').value = state.balance;
+  $('bet').value = state.bet;
+
+  $('balance').addEventListener('input', function () {
+    var v = num($('balance').value); if (isFinite(v)) { state.balance = v; save(); } renderPreview();
+  });
+  $('bet').addEventListener('input', function () {
+    var v = num($('bet').value); if (isFinite(v)) { state.bet = v; save(); } renderPreview();
+  });
+  $('btn-win').addEventListener('click', function () { play('win'); });
+  $('btn-lose').addEventListener('click', function () { play('lose'); });
+  $('btn-undo').addEventListener('click', undo);
+  $('btn-clear').addEventListener('click', function () {
+    if (state.history.length && confirm(t('confirm.clear'))) {
+      state.history = []; save(); renderHistory();
+    }
+  });
+  $('btn-reset').addEventListener('click', function () {
+    if (confirm(t('confirm.reset'))) {
+      state.settings = defaultSettings(); save(); renderSettings(); renderGames(); renderPreview();
+    }
+  });
+  $('tab-calc').addEventListener('click', function () { setTab('calc'); });
+  $('tab-settings').addEventListener('click', function () { setTab('settings'); });
+
+  function applyLang() {
+    document.documentElement.lang = state.lang;
+    document.title = t('title');
+    var els = document.querySelectorAll('[data-i18n]');
+    for (var i = 0; i < els.length; i++) els[i].textContent = t(els[i].getAttribute('data-i18n'));
+    $('lang').setAttribute('aria-label', t('lang.label'));
+    var btns = document.querySelectorAll('[data-lang]');
+    for (var j = 0; j < btns.length; j++) {
+      btns[j].setAttribute('aria-pressed', btns[j].getAttribute('data-lang') === state.lang);
+    }
+    renderGames(); renderSettings(); renderHistory(); renderPreview();
+  }
+  var langBtns = document.querySelectorAll('[data-lang]');
+  for (var k = 0; k < langBtns.length; k++) {
+    langBtns[k].addEventListener('click', function (ev) {
+      state.lang = ev.currentTarget.getAttribute('data-lang');
+      save(); applyLang();
+    });
+  }
+
+  applyLang();
+})();
+</script>
+</body>
+</html>
