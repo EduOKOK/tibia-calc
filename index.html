@@ -58,7 +58,7 @@
 
   label.field { display: block; }
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
-  .field span.name { display: block; margin-bottom: 4px; color: var(--muted); }
+  .field .name { display: block; margin-bottom: 4px; color: var(--muted); }
   input[type="number"] {
     width: 100%; padding: 8px 10px; color: var(--crystal);
     font: bold 16px Verdana, Tahoma, sans-serif;
@@ -67,6 +67,12 @@
   input:focus-visible, button:focus-visible, .game input:focus-visible + span {
     outline: 2px solid var(--focus); outline-offset: 1px;
   }
+
+  .input-row { display: flex; gap: 6px; }
+  .input-row input { flex: 1; min-width: 0; }
+  button.copy { min-width: 76px; white-space: nowrap; }
+  .check { display: flex; align-items: flex-start; gap: 8px; margin: -4px 0 14px; color: var(--muted); cursor: pointer; }
+  .check input { flex-shrink: 0; margin: 1px 0 0; }
 
   fieldset { border: 0; padding: 0; margin: 0 0 14px; }
   legend { color: var(--muted); padding: 0; margin-bottom: 4px; }
@@ -107,6 +113,7 @@
   button.lose { color: var(--lose); font-weight: bold; font-size: 15px; }
   button.plain { padding: 5px 10px; font-size: 12px; }
 
+  .reset-row { margin-top: 12px; }
   .log-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
   .log-head h2 { font-size: 13px; margin: 0; }
   .log-tools { display: flex; gap: 6px; }
@@ -156,11 +163,16 @@
   <!-- Calculator -->
   <section class="panel" id="panel-calc" role="tabpanel" aria-labelledby="tab-calc">
     <div class="row">
-      <label class="field"><span class="name" data-i18n="balance">Player balance (cc)</span>
-        <input type="number" id="balance" step="any" inputmode="decimal"></label>
+      <div class="field"><label class="name" for="balance" data-i18n="balance">Player balance (cc)</label>
+        <div class="input-row">
+          <input type="number" id="balance" step="any" inputmode="decimal">
+          <button class="plain copy" id="btn-copy" data-i18n="copy">Copy</button>
+        </div></div>
       <label class="field"><span class="name" data-i18n="bet">Player bet (cc)</span>
         <input type="number" id="bet" step="any" min="0" inputmode="decimal"></label>
     </div>
+
+    <label class="check"><input type="checkbox" id="autocopy"> <span data-i18n="autocopy">Copy balance automatically</span></label>
 
     <fieldset>
       <legend data-i18n="game">Game</legend>
@@ -173,6 +185,7 @@
       <button class="win" id="btn-win" data-i18n="btn.won">Player won</button>
       <button class="lose" id="btn-lose" data-i18n="btn.lost">Player lost</button>
     </div>
+    <div class="reset-row"><button class="plain" id="btn-resetall" data-i18n="resetAll">Reset</button></div>
   </section>
 
   <!-- Settings -->
@@ -241,6 +254,13 @@
       "undo": "Undo last",
       "clear": "Clear history",
       "lang.label": "Language",
+      "resetAll": "Reset",
+      "confirm.resetAll": "Reset balance and bet to 0 and clear the bet history? Payout settings are kept.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyFail": "Copy failed",
+      "autocopy": "Copy balance automatically",
+      "aria.copy": "Copy balance to clipboard",
       "game.highlow": "High / Low",
       "game.number": "Number",
       "game.blackjack": "Blackjack",
@@ -284,6 +304,13 @@
       "undo": "Cofnij ostatni",
       "clear": "Wyczyść historię",
       "lang.label": "Język",
+      "resetAll": "Resetuj",
+      "confirm.resetAll": "Wyzerować saldo i stawkę oraz wyczyścić historię zakładów? Ustawienia wypłat zostaną zachowane.",
+      "copy": "Kopiuj",
+      "copied": "Skopiowano",
+      "copyFail": "Błąd kopiowania",
+      "autocopy": "Kopiuj saldo automatycznie",
+      "aria.copy": "Kopiuj saldo do schowka",
       "game.highlow": "High / Low",
       "game.number": "Numer",
       "game.blackjack": "Blackjack",
@@ -315,7 +342,7 @@
     return l.indexOf('pl') === 0 ? 'pl' : 'en';
   }
 
-  var state = { balance: 0, bet: 0, game: 'highlow', lang: detectLang(), settings: defaultSettings(), history: [] };
+  var state = { balance: 0, bet: 0, game: 'highlow', lang: detectLang(), autoCopy: false, settings: defaultSettings(), history: [] };
 
   function t(key, vars) {
     var str = (I18N[state.lang] && I18N[state.lang][key]) || I18N.en[key] || key;
@@ -334,6 +361,7 @@
       if (typeof d.bet === 'number' && isFinite(d.bet)) state.bet = d.bet;
       if (typeof d.game === 'string') state.game = d.game;
       if (d.lang === 'en' || d.lang === 'pl') state.lang = d.lang;
+      if (typeof d.autoCopy === 'boolean') state.autoCopy = d.autoCopy;
       if (d.settings) {
         DEFAULT_GAMES.forEach(function (g) {
           var s = d.settings[g.id];
@@ -530,6 +558,7 @@
     state.balance = after;
     $('balance').value = after;
     save(); renderHistory(); renderPreview();
+    if (state.autoCopy) copyBalance();
   }
 
   function undo() {
@@ -538,6 +567,45 @@
     state.balance = last.before;
     $('balance').value = last.before;
     save(); renderHistory(); renderPreview();
+    if (state.autoCopy) copyBalance();
+  }
+
+  function copyText(text) {
+    function legacy() {
+      return new Promise(function (resolve, reject) {
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          var ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+          if (ok) resolve(); else reject(new Error('copy command failed'));
+        } catch (e) { reject(e); }
+      });
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).catch(legacy);
+    }
+    return legacy();
+  }
+
+  var flashTimer = null;
+  function flashCopy(key) {
+    var btn = $('btn-copy');
+    btn.textContent = t(key);
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(function () { btn.textContent = t('copy'); }, 1200);
+  }
+  function copyBalance() {
+    var v = num($('balance').value);
+    if (!isFinite(v)) return;
+    copyText(String(round2(v))).then(
+      function () { flashCopy('copied'); },
+      function () { flashCopy('copyFail'); }
+    );
   }
 
   function setTab(name) {
@@ -562,6 +630,15 @@
   $('btn-win').addEventListener('click', function () { play('win'); });
   $('btn-lose').addEventListener('click', function () { play('lose'); });
   $('btn-undo').addEventListener('click', undo);
+  $('btn-copy').addEventListener('click', copyBalance);
+  $('btn-resetall').addEventListener('click', function () {
+    if (!confirm(t('confirm.resetAll'))) return;
+    state.balance = 0; state.bet = 0; state.history = [];
+    $('balance').value = 0; $('bet').value = 0;
+    save(); renderHistory(); renderPreview();
+  });
+  $('autocopy').checked = state.autoCopy;
+  $('autocopy').addEventListener('change', function () { state.autoCopy = $('autocopy').checked; save(); });
   $('btn-clear').addEventListener('click', function () {
     if (state.history.length && confirm(t('confirm.clear'))) {
       state.history = []; save(); renderHistory();
@@ -581,6 +658,7 @@
     var els = document.querySelectorAll('[data-i18n]');
     for (var i = 0; i < els.length; i++) els[i].textContent = t(els[i].getAttribute('data-i18n'));
     $('lang').setAttribute('aria-label', t('lang.label'));
+    $('btn-copy').setAttribute('aria-label', t('aria.copy'));
     var btns = document.querySelectorAll('[data-lang]');
     for (var j = 0; j < btns.length; j++) {
       btns[j].setAttribute('aria-pressed', btns[j].getAttribute('data-lang') === state.lang);
