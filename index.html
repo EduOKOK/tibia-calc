@@ -70,7 +70,7 @@
 
   .input-row { display: flex; gap: 6px; }
   .input-row input { flex: 1; min-width: 0; }
-  button.copy { min-width: 76px; white-space: nowrap; }
+  button.copy, button.allin { min-width: 76px; white-space: nowrap; }
   .check { display: flex; align-items: flex-start; gap: 8px; margin: -4px 0 14px; color: var(--muted); cursor: pointer; }
   .check input { flex-shrink: 0; margin: 1px 0 0; }
 
@@ -168,8 +168,11 @@
           <input type="number" id="balance" step="any" inputmode="decimal">
           <button class="plain copy" id="btn-copy" data-i18n="copy">Copy</button>
         </div></div>
-      <label class="field"><span class="name" data-i18n="bet">Player bet (cc)</span>
-        <input type="number" id="bet" step="any" min="0" inputmode="decimal"></label>
+      <div class="field"><label class="name" for="bet" data-i18n="bet">Player bet (cc)</label>
+        <div class="input-row">
+          <input type="number" id="bet" step="any" min="0" inputmode="decimal">
+          <button class="plain allin" id="btn-allin" data-i18n="allin">All-in</button>
+        </div></div>
     </div>
 
     <label class="check"><input type="checkbox" id="autocopy"> <span data-i18n="autocopy">Copy balance automatically</span></label>
@@ -254,6 +257,8 @@
       "undo": "Undo last",
       "clear": "Clear history",
       "lang.label": "Language",
+      "allin": "All-in",
+      "aria.allin": "Set bet to the full balance",
       "resetAll": "Reset",
       "confirm.resetAll": "Reset balance and bet to 0 and clear the bet history? Payout settings are kept.",
       "copy": "Copy",
@@ -304,6 +309,8 @@
       "undo": "Cofnij ostatni",
       "clear": "Wyczyść historię",
       "lang.label": "Język",
+      "allin": "All-in",
+      "aria.allin": "Ustaw stawkę na całe saldo",
       "resetAll": "Resetuj",
       "confirm.resetAll": "Wyzerować saldo i stawkę oraz wyczyścić historię zakładów? Ustawienia wypłat zostaną zachowane.",
       "copy": "Kopiuj",
@@ -312,7 +319,7 @@
       "autocopy": "Kopiuj saldo automatycznie",
       "aria.copy": "Kopiuj saldo do schowka",
       "game.highlow": "High / Low",
-      "game.number": "Numer",
+      "game.number": "Number",
       "game.blackjack": "Blackjack",
       "game.blackjack21": "Blackjack 21 (bonus)",
       "game.threev3": "3v3",
@@ -438,6 +445,7 @@
     var bal = num($('balance').value);
     var en = enabledGames();
     var canPlay = en.length > 0 && isFinite(bet) && bet > 0 && isFinite(bal);
+    $('btn-allin').disabled = !(isFinite(bal) && bal > 0);
     $('btn-win').disabled = !canPlay;
     $('btn-lose').disabled = !canPlay;
     p.innerHTML = '';
@@ -631,6 +639,13 @@
   $('btn-lose').addEventListener('click', function () { play('lose'); });
   $('btn-undo').addEventListener('click', undo);
   $('btn-copy').addEventListener('click', copyBalance);
+  $('btn-allin').addEventListener('click', function () {
+    var v = num($('balance').value);
+    if (!isFinite(v) || v <= 0) return;
+    state.bet = round2(v);
+    $('bet').value = state.bet;
+    save(); renderPreview();
+  });
   $('btn-resetall').addEventListener('click', function () {
     if (!confirm(t('confirm.resetAll'))) return;
     state.balance = 0; state.bet = 0; state.history = [];
@@ -659,6 +674,7 @@
     for (var i = 0; i < els.length; i++) els[i].textContent = t(els[i].getAttribute('data-i18n'));
     $('lang').setAttribute('aria-label', t('lang.label'));
     $('btn-copy').setAttribute('aria-label', t('aria.copy'));
+    $('btn-allin').setAttribute('aria-label', t('aria.allin'));
     var btns = document.querySelectorAll('[data-lang]');
     for (var j = 0; j < btns.length; j++) {
       btns[j].setAttribute('aria-pressed', btns[j].getAttribute('data-lang') === state.lang);
